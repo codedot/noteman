@@ -12,6 +12,7 @@
 <script>
 const map = new Map();
 const notes = new Set();
+const ports = new Set();
 let game, outputs, none, active, running, nextcb, ready, src;
 
 function random(n)
@@ -108,31 +109,28 @@ function stop()
 		reset();
 }
 
-function remove(output)
+function remove(id)
 {
-	const button = map.get(output.id);
-
-	if (button.data("id") == active) {
+	if (id == active) {
 		active = undefined;
 		stop();
 	}
 
-	button.remove();
+	map.get(id).remove();
 
 	if (!outputs.children().length)
 		none.appendTo(outputs);
 }
 
-function append(output)
+function append(id, name)
 {
-	const id = output.id;
 	const button = none.clone();
 
 	none.detach();
 
 	button.data("id", id);
 	button.attr("disabled", false);
-	button.text(output.name);
+	button.text(name);
 	button.click(() => {
 		if (id == active)
 			return;
@@ -192,18 +190,30 @@ $(() => WebMidi.enable(error => {
 
 	WebMidi.addListener("connected", event => {
 		const port = event.port;
+		const id = port.id;
+
+		if (ports.has(id))
+			return;
+
+		ports.add(id);
 
 		if ("output" == port.type)
-			append(port);
+			append(id, port.name);
 
 		if ("input" == port.type)
 			port.on("noteon", "all", listen);
 	});
 	WebMidi.addListener("disconnected", event => {
 		const port = event.port;
+		const id = port.id;
+
+		if (!ports.has(id))
+			return;
+
+		ports.delete(id);
 
 		if ("output" == port.type)
-			remove(port);
+			remove(id);
 	});
 
 	next().then(note => {
