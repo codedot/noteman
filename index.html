@@ -1,0 +1,241 @@
+<!doctype html>
+
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Noteman</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.css">
+<script src="https://code.jquery.com/jquery.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/webmidi@2.0.0"></script>
+
+<script>
+const map = new Map();
+const notes = new Set();
+let game, outputs, none, active, running, nextcb, ready, src;
+
+function random(n)
+{
+	return Math.floor(Math.random() * n);
+}
+
+function shuffle(a)
+{
+	for (let i = a.length - 1; i > 0; i--) {
+		const j = random(i + 1);
+		const t = a[j];
+
+		a[j] = a[i];
+		a[i] = t;
+	}
+}
+
+function* generate()
+{
+	const a = Array.from(notes);
+	const n = a.length;
+
+	while (true) {
+		const i = random(n);
+
+		shuffle(a);
+
+		yield* a.slice(i);
+	}
+}
+
+function play(note, dur)
+{
+	const output = WebMidi.getOutputById(active);
+
+	output.playNote(note, 1, {
+		duration: dur * 1e3
+	});
+}
+
+function quiz(delay, correct)
+{
+	if (!Number.isInteger(correct))
+		correct = src.next().value;
+
+	return wait(delay).then(() => {
+		if (!running)
+			throw "stop";
+
+		play(correct, 1);
+
+		return next(4);
+	}).then(answer => {
+		if (!running)
+			throw "stop";
+
+		if (correct == answer)
+			return quiz(1);
+		else if ("timeout" == answer)
+			return quiz(0, correct);
+		else
+			return quiz(1, correct);
+	});
+}
+
+function start()
+{
+	game.removeClass("btn-success");
+	game.addClass("btn-danger");
+	game.text("Stop");
+
+	running = true;
+
+	src = generate();
+	quiz(1).catch(reset);
+}
+
+function reset()
+{
+	game.attr("disabled", !active || !ready);
+	game.removeClass("btn-danger");
+	game.addClass("btn-success");
+	game.text("Start");
+}
+
+function stop()
+{
+	game.attr("disabled", true);
+
+	if (running)
+		running = false;
+	else
+		reset();
+}
+
+function remove(output)
+{
+	const button = map.get(output.id);
+
+	if (button.data("id") == active) {
+		active = undefined;
+		stop();
+	}
+
+	button.remove();
+
+	if (!outputs.children().length)
+		none.appendTo(outputs);
+}
+
+function append(output)
+{
+	const id = output.id;
+	const button = none.clone();
+
+	none.detach();
+
+	button.data("id", id);
+	button.attr("disabled", false);
+	button.text(output.name);
+	button.click(() => {
+		if (id == active)
+			return;
+
+		active = id;
+		$("button.active").removeClass("active");
+		button.addClass("active");
+		stop();
+	});
+
+	outputs.append(button);
+	map.set(id, button);
+}
+
+function wait(delay)
+{
+	return new Promise(resolve => {
+		setTimeout(resolve, delay * 1e3);
+	});
+}
+
+function next(timeout)
+{
+	return new Promise(resolve => {
+		nextcb = resolve;
+
+		if (!timeout)
+			return;
+
+		setTimeout(() => {
+			resolve("timeout");
+		}, timeout * 1e3);
+	});
+}
+
+function listen(event)
+{
+	const note = event.note.number;
+
+	notes.add(note);
+
+	if (nextcb) {
+		nextcb(note);
+		nextcb = undefined;
+	}
+}
+
+$(() => WebMidi.enable(error => {
+	if (error)
+		return;
+
+	outputs = $("#outputs");
+	none = $("button.template");
+	none.removeClass("template");
+	game = $("#game");
+	game.click(() => running ? stop() : start());
+
+	WebMidi.addListener("connected", event => {
+		const port = event.port;
+
+		if ("output" == port.type)
+			append(port);
+
+		if ("input" == port.type)
+			port.on("noteon", "all", listen);
+	});
+	WebMidi.addListener("disconnected", event => {
+		const port = event.port;
+
+		if ("output" == port.type)
+			remove(port);
+	});
+
+	next().then(note => {
+		ready = true;
+		reset();
+	});
+}));
+</script>
+</head>
+
+<body>
+<div class="container-fluid">
+<div class="row justify-content-center my-5">
+<div class="col-md-8">
+<h1>Noteman</h1>
+
+<p class="lead">
+All inputs are listened to.
+One output needs to be selected.
+Notes played so far will be used.
+</p>
+
+<button id="game" type="button" class="btn btn-lg btn-success btn-block my-3" disabled>
+Start
+</button>
+
+<div id="outputs" class="list-group">
+<button type="button" class="list-group-item list-group-item-action template" disabled>
+No MIDI outputs found
+</button>
+</div>
+</div>
+</div>
+</div>
+</html>
