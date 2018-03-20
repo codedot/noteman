@@ -187,6 +187,10 @@ function listen(event)
 }
 
 $(() => WebMidi.enable(error => {
+	$("#reload").click(() => {
+		location.reload();
+	});
+
 	if (error)
 		return;
 
@@ -249,9 +253,19 @@ One output needs to be selected.
 Notes played so far will be used.
 </p>
 
-<button id="game" type="button" class="btn btn-lg btn-success btn-block my-3" disabled>
+<div class="row my-3">
+<div class="col">
+<button id="game" type="button" class="btn btn-lg btn-success btn-block" disabled>
 Start
 </button>
+</div>
+
+<div class="col">
+<button id="reload" type="button" class="btn btn-lg btn-secondary btn-block">
+Reload
+</button>
+</div>
+</div>
 
 <div id="outputs" class="list-group">
 <button type="button" class="list-group-item list-group-item-action template" disabled>
