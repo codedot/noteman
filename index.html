@@ -13,7 +13,8 @@
 const map = new Map();
 const notes = new Set();
 const ports = new Set();
-let game, outputs, none, active, running, nextcb, ready, src;
+let state = "idle";
+let game, outputs, none, active, nextcb, ready, src;
 
 function random(n)
 {
@@ -60,15 +61,15 @@ function quiz(delay, correct)
 		correct = src.next().value;
 
 	return wait(delay).then(() => {
-		if (!running)
-			throw "stop";
+		if ("stop" == state)
+			throw state;
 
 		play(correct, 1);
 
 		return next(4);
 	}).then(answer => {
-		if (!running)
-			throw "stop";
+		if ("stop" == state)
+			throw state;
 
 		if (correct == answer)
 			return quiz(1);
@@ -85,10 +86,17 @@ function start()
 	game.addClass("btn-danger");
 	game.text("Stop");
 
-	running = true;
+	state = "game";
 
 	src = generate();
-	quiz(1).catch(reset);
+	quiz(1).catch(reason => {
+		if ("stop" != reason)
+			console.error(reason);
+
+		state = "idle";
+
+		reset();
+	});
 }
 
 function reset()
@@ -103,10 +111,10 @@ function stop()
 {
 	game.attr("disabled", true);
 
-	if (running)
-		running = false;
-	else
+	if ("idle" == state)
 		reset();
+	else
+		state = "stop";
 }
 
 function remove(id)
@@ -186,7 +194,12 @@ $(() => WebMidi.enable(error => {
 	none = $("button.template");
 	none.removeClass("template");
 	game = $("#game");
-	game.click(() => running ? stop() : start());
+	game.click(() => {
+		if ("idle" == state)
+			start();
+		else
+			stop();
+	});
 
 	WebMidi.addListener("connected", event => {
 		const port = event.port;
