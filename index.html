@@ -16,7 +16,7 @@ const map = new Map();
 const notes = new Set();
 const ports = new Set();
 let state = "idle";
-let game, outputs, none, active, nextcb, ready, src;
+let game, outputs, none, active, nextcb, src;
 
 function random(n)
 {
@@ -103,7 +103,7 @@ function start()
 
 function reset()
 {
-	game.attr("disabled", !active || !ready);
+	game.attr("disabled", !active || !notes.size);
 	game.removeClass("btn-danger");
 	game.addClass("btn-success");
 	game.text("Start");
@@ -235,10 +235,7 @@ $(() => WebMidi.enable(error => {
 			remove(id);
 	});
 
-	next().then(note => {
-		ready = true;
-		reset();
-	});
+	next().then(reset);
 }));
 </script>
 </head>
